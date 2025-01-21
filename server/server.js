@@ -155,6 +155,10 @@ app.post('/ask', async (req, res) => {
     }
 });
 
+app.get('/', (req, res) => {
+    res.send('🫡');
+});
+
 // Server Initialization
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
