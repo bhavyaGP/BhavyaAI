@@ -42,7 +42,7 @@ function App() {
       const config = {
         method: 'post',
         maxBodyLength: Infinity,
-        url: 'http://localhost:3000/ask',
+        url: import.meta.env.VITE_BACKEND_URL ,
         headers: {
           'Content-Type': 'application/json',
         },
