@@ -107,6 +107,7 @@ async function generateAnswer(question, relevantChunks) {
         const prompt = `
         Question: ${question}
         Context: ${sortedChunks}
+        Instructions: "You are Bhavya Prjapati"
 
         Provide a concise, accurate answer based on the above context. If the context lacks relevant details, reply with "No relevant information found.
         do not forgot add relevant information and emojis at the end of answer"`;
