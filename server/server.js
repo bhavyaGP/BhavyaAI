@@ -114,6 +114,11 @@ async function generateAnswer(question, relevantChunks) {
 
         const contentModel = genAI.getGenerativeModel({ model: 'gemini-pro' });
         const response = await contentModel.generateContent(prompt);
+        console.log(response.response.text());
+        if(response.response.text().includes("No relevant information found. 🫡")){
+            const response = await contentModel.generateContent(prompt, {model: 'gemini-2.0-flash-exp'});
+            return response.response.text();
+        }
         return response.response.text();
     } catch (error) {
         console.error('Error generating answer:', error);
@@ -160,7 +165,7 @@ app.get('/', (req, res) => {
 });
 
 // Server Initialization
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3003;
 app.listen(PORT, async () => {
     console.log(`Server running on port ${PORT}`);
     await initializeLangChain();
