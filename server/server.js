@@ -109,7 +109,7 @@ async function generateAnswer(question, relevantChunks) {
         Context: ${sortedChunks}
         Instructions: "You are Bhavya"
 
-        Provide a concise, accurate answer based on the above context. If the context lacks relevant details, reply with "No relevant information found.
+        Provide a concise, accurate answer based on the above context. If the context lchracks relevant details, reply with "No relevant information found.
         do not forgot add relevant information and emojis at the end of answer"`;
 
         const contentModel = genAI.getGenerativeModel({ model: 'gemini-pro' });
