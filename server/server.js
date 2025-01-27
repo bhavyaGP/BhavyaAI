@@ -112,14 +112,17 @@ async function generateAnswer(question, relevantChunks) {
         Provide a concise, accurate answer based on the above context. If the context lchracks relevant details, reply with "No relevant information found.
         do not forgot add relevant information and emojis at the end of answer"`;
 
-        const contentModel = genAI.getGenerativeModel({ model: 'gemini-pro' });
-        const response = await contentModel.generateContent(prompt);
-        console.log(response.response.text());
-        if(response.response.text().includes("No relevant information found. 🫡")){
-            const response = await contentModel.generateContent(prompt, {model: 'gemini-2.0-flash-exp'});
-            return response.response.text();
+        const primaryModel = genAI.getGenerativeModel({ model: 'gemini-pro' });
+        const primaryResponse = await primaryModel.generateContent(prompt);
+        const text = primaryResponse.response.text().toLowerCase();
+
+        if (text.includes('no relevant information found')) {
+            const backupModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+            const backupResponse = await backupModel.generateContent(prompt);
+            return backupResponse.response.text();
         }
-        return response.response.text();
+        
+        return primaryResponse.response.text();
     } catch (error) {
         console.error('Error generating answer:', error);
         return 'An error occurred while generating the answer.';
