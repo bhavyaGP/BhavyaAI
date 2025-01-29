@@ -5,6 +5,7 @@ const readline = require('readline');
 const { Pinecone } = require('@pinecone-database/pinecone');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const cors = require('cors');
+const morgan = require('morgan');
 
 // Configurations
 const corsOptions = {
@@ -14,7 +15,10 @@ const corsOptions = {
     optionsSuccessStatus: 204
 };
 
+
+
 const app = express();
+app.use(morgan("[:date[clf]] :method :url :status :res[content-length] - :response-time ms"));
 app.use(cors(corsOptions));
 app.use(express.json());
 
@@ -164,7 +168,7 @@ app.post('/ask', async (req, res) => {
 });
 
 app.get('/', (req, res) => {
-    res.send('🫡');
+    res.json('🫡');
 });
 
 // Server Initialization
