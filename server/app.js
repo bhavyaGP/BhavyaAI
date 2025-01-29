@@ -8,14 +8,23 @@ const cors = require('cors');
 const morgan = require('morgan');
 
 // Configurations
+const allowedOrigins = [
+    process.env.FRONTEND_URL,
+    "http://localhost:5173"
+];
+
 const corsOptions = {
-    origin: process.env.FRONTEND_URL,
+    origin: function (origin, callback) {
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error("Not allowed by CORS"));
+        }
+    },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
     optionsSuccessStatus: 204
 };
-
-
 
 const app = express();
 app.use(morgan("[:date[clf]] :method :url :status :res[content-length] - :response-time ms"));
@@ -125,7 +134,7 @@ async function generateAnswer(question, relevantChunks) {
             const backupResponse = await backupModel.generateContent(prompt);
             return backupResponse.response.text();
         }
-        
+
         return primaryResponse.response.text();
     } catch (error) {
         console.error('Error generating answer:', error);
