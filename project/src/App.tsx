@@ -42,7 +42,7 @@ function App() {
       const config = {
         method: 'post',
         maxBodyLength: Infinity,
-        url: import.meta.env.VITE_BACKEND_URL,
+        URL: "http://13.232.243.112:3003/ask",
         headers: {
           'Content-Type': 'application/json',
         },
