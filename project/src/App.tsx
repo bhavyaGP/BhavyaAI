@@ -42,7 +42,7 @@ function App() {
       const config = {
         method: 'post',
         maxBodyLength: Infinity,
-        URL: import.meta.env.VITE_BACKEND_URL,
+        URL: "https://bhavya-ai-uz8s.vercel.app/ask",
         headers: {
           'Content-Type': 'application/json',
         },
