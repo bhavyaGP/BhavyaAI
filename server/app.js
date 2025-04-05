@@ -8,26 +8,11 @@ const cors = require('cors');
 const morgan = require('morgan');
 
 // Configurations
-const allowedOrigins = [
-  '*'
-];
 
-const corsOptions = {
-    origin: function (origin, callback) {
-        if (!origin || allowedOrigins.includes(origin)) {
-            callback(null, true);
-        } else {
-            callback(new Error("Not allowed by CORS"));
-        }
-    },
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-    credentials: true,
-    optionsSuccessStatus: 204
-};
 
 const app = express();
 app.use(morgan("[:date[clf]] :method :url :status :res[content-length] - :response-time ms"));
-app.use(cors(corsOptions));
+app.use(cors({ origin: '*' }));
 app.use(express.json());
 
 // Initialize Generative AI
