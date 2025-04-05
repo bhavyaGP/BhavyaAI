@@ -9,9 +9,7 @@ const morgan = require('morgan');
 
 // Configurations
 const allowedOrigins = [
-    process.env.FRONTEND_URL,
-    "https://bhavya-ai.vercel.app/",
-    "http://localhost:5173"
+  '*'
 ];
 
 const corsOptions = {
