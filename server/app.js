@@ -125,7 +125,7 @@ async function generateAnswer(question, relevantChunks) {
         Provide a concise, accurate answer based on the above context. If the context lchracks relevant details, reply with "No relevant information found.
         do not forgot add relevant information and emojis at the end of answer"`;
 
-        const primaryModel = genAI.getGenerativeModel({ model: 'gemini-pro' });
+        const primaryModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
         const primaryResponse = await primaryModel.generateContent(prompt);
         const text = primaryResponse.response.text().toLowerCase();
 
