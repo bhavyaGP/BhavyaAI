@@ -42,7 +42,7 @@ function App() {
       const config = {
         method: 'post',
         maxBodyLength: Infinity,
-        URL: "https://bhavya-ai-uz8s.vercel.app/ask",
+        url: "https://bhavya-ai-uz8s.vercel.app/ask",
         headers: {
           'Content-Type': 'application/json',
         },
