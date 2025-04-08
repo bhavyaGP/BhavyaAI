@@ -3,7 +3,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ChatMessage } from "@/components/chat-message";
 import { ChatInput } from "@/components/chat-input";
-import { Bot, Menu } from "lucide-react";
+import { Bot, Menu, X } from "lucide-react";
 import axios from 'axios';
 import { cn } from "@/lib/utils";
 
@@ -11,7 +11,15 @@ interface Message {
   text: string;
   isBot: boolean;
   timestamp: string;
+  status?: 'sending' | 'sent' | 'error';
 }
+
+const suggestedQuestions = [
+  "What can you help me with?",
+  "Tell me about yourself",
+  "How do I get started?",
+  "What are your capabilities?"
+];
 
 function App() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -32,6 +40,7 @@ function App() {
       text: message,
       isBot: false,
       timestamp: new Date().toLocaleTimeString(),
+      status: 'sending'
     };
 
     setMessages((prev) => [...prev, newMessage]);
@@ -50,21 +59,22 @@ function App() {
       };
 
       const response = await axios.request(config);
-      console.log(response);
       const botMessage: Message = {
         text: response.data.answer || "Sorry, I couldn't process that request.",
         isBot: true,
         timestamp: new Date().toLocaleTimeString(),
+        status: 'sent'
       };
 
-      setMessages((prev) => [...prev, botMessage]);
+      setMessages((prev) => [...prev.slice(0, -1), { ...prev[prev.length - 1], status: 'sent' }, botMessage]);
     } catch (error) {
       const errorMessage: Message = {
         text: "Sorry, I'm having trouble connecting to the server.",
         isBot: true,
         timestamp: new Date().toLocaleTimeString(),
+        status: 'error'
       };
-      setMessages((prev) => [...prev, errorMessage]);
+      setMessages((prev) => [...prev.slice(0, -1), { ...prev[prev.length - 1], status: 'error' }, errorMessage]);
     } finally {
       setLoading(false);
     }
@@ -80,7 +90,7 @@ function App() {
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               className="md:hidden mr-2 p-2 hover:bg-accent rounded-md transition-colors"
             >
-              <Menu className="h-5 w-5" />
+              {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
             <div className="flex items-center gap-2 font-semibold mx-auto">
               <Bot className="h-6 w-6 animate-pulse" />
@@ -111,11 +121,22 @@ function App() {
                     <div className="animate-in zoom-in duration-300">
                       <Bot className="h-12 w-12 mx-auto mb-4 text-muted-foreground animate-bounce" />
                       <h2 className="text-xl md:text-2xl font-semibold mb-2 bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                        Welcome to Bhavya AI Chatbot! 👾
+                        Welcome to Bhavya AI Chatbot! <span className="emoji">👾</span>
                       </h2>
-                      <p className="text-muted-foreground text-sm md:text-base">
-                        Start a conversation by typing a message below.
+                      <p className="text-muted-foreground text-sm md:text-base mb-6">
+                        Start a conversation by typing a message below or try one of these suggestions:
                       </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {suggestedQuestions.map((question, index) => (
+                          <button
+                            key={index}
+                            onClick={() => handleSendMessage(question)}
+                            className="text-left p-3 rounded-lg border bg-background hover:bg-accent transition-colors text-sm"
+                          >
+                            {question}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 ) : (
@@ -133,15 +154,12 @@ function App() {
                           animationFillMode: 'backwards'
                         }}
                       >
-                        <div className="relative">
-                          <div className="absolute -left-2 top-1/2 w-1 h-1 bg-primary/40 rounded-full animate-ping" />
-                          <div className="absolute -right-2 top-1/2 w-1 h-1 bg-primary/40 rounded-full animate-ping" style={{ animationDelay: '0.5s' }} />
-                          <ChatMessage
-                            message={msg.text}
-                            isBot={msg.isBot}
-                            timestamp={msg.timestamp}
-                          />
-                        </div>
+                        <ChatMessage
+                          message={msg.text}
+                          isBot={msg.isBot}
+                          timestamp={msg.timestamp}
+                          status={msg.status}
+                        />
                       </div>
                     ))}
                     <div ref={messagesEndRef} />
@@ -157,13 +175,6 @@ function App() {
                 onSend={handleSendMessage} 
                 disabled={loading} 
               />
-              {loading && (
-                <div className="flex justify-center mt-2">
-                  <div className="animate-pulse text-sm text-muted-foreground">
-                    BhavyaAI is thinking...
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </main>

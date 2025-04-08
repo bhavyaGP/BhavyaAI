@@ -3,7 +3,7 @@ const express = require('express');
 const fs = require('fs');
 const readline = require('readline');
 const { Pinecone } = require('@pinecone-database/pinecone');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { GoogleGenerativeAI } = require('@google/generative-ai');    
 const cors = require('cors');
 const morgan = require('morgan');
 
@@ -79,6 +79,21 @@ function extractKeyPhrases(text) {
         .slice(0, 10); // Keep top 10 key phrases
 }
 
+// Helper Function: Clean markdown from text
+function cleanMarkdownOutput(text) {
+  return text
+    .replace(/\*\*(.*?)\*\*/g, '$1')       // Remove bold markers
+    .replace(/\*(.*?)\*/g, '$1')           // Remove italic markers
+    .replace(/```[\s\S]*?```/g, (match) => // Clean code blocks
+      match.replace(/```(.*?)\n/g, '').replace(/```$/g, '')
+    )
+    .replace(/^#+ (.*?)$/gm, '$1')         // Remove heading markers
+    .replace(/`(.*?)`/g, '$1')             // Remove inline code markers
+    .replace(/\[(.*?)\]\((.*?)\)/g, '$1')  // Replace links with just text
+    .replace(/^\> (.*?)$/gm, '$1')         // Remove blockquote markers
+    .replace(/\n\n+/g, '\n\n');            // Normalize spacing
+}
+
 // Helper Function: Retrieve Relevant Chunks from Pinecone
 async function retrieveRelevantChunks(question) {
     const questionEmbedding = await textEmbeddingModel.embedContent(question);
@@ -104,10 +119,15 @@ async function generateAnswer(question, relevantChunks) {
         const prompt = `
         Question: ${question}
         Context: ${sortedChunks}
-        Instructions: "You are Bhavya"
+        Instructions: You are Bhavya. IMPORTANT: Do NOT use any markdown formatting in your response.
+        - NO asterisks (**)
+        - NO backticks (\`\`\`)
+        - NO hashtags for headings (#)
+        - NO bullet points with dashes or asterisks
+        - Provide plain text only
 
-        Provide a concise, accurate answer based on the above context. If the context lchracks relevant details, reply with "No relevant information found.
-        do not forgot add relevant information and emojis at the end of answer"`;
+        Provide a concise, accurate answer based on the above context. If the context lacks relevant details, reply with "No relevant information found."
+        You may include emoji characters but don't include markdown formatting syntax.`;
 
         const primaryModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
         const primaryResponse = await primaryModel.generateContent(prompt);
