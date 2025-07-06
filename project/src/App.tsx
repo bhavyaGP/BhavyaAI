@@ -74,8 +74,8 @@ function App() {
       const config = {
         method: 'post',
         maxBodyLength: Infinity,
-        // url: "https://bhavya-ai-uz8s.vercel.app/ask",
-        url: "http://localhost:3003/ask",
+        url: "https://bhavya-ai-uz8s.vercel.app/ask",
+        // url: "http://localhost:3003/ask",
         headers: {
           'Content-Type': 'application/json',
         },
