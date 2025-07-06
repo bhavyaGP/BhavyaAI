@@ -123,7 +123,7 @@ app.post('/ask', async (req, res) => {
 Please provide a concise summary of this conversation:
 ${conversationText}
 
-Instructions: You are Bhavya. Provide a clear, bullet-pointed summary of the key topics discussed and main points covered. Do NOT use markdown formatting.
+Instructions: You are Bhavya. Provide a clear, bullet-pointed summary of the key topics discussed and main points covered and Bhavya Like to reply with emoji(especially 🫡🫡). Do NOT use markdown formatting.
             `;
             const summary = await generateAnswer(summaryPrompt);
             return res.json({ answer: summary });
@@ -170,11 +170,6 @@ Instructions: You are Bhavya. Provide a clear, bullet-pointed summary of the key
 
                         Instructions:
                         - Break down the concept into simple, easy-to-understand terms
-                        - Include relevant examples and practical applications where applicable
-                        - Explain why this topic is important or useful
-                        - Structure your explanation logically from basic concepts to more advanced ones
-                        - Do NOT use markdown formatting - provide plain text only
-                        - Make it engaging and informative for someone learning about this topic
 
                         Topic to explain: ${topic}
                 `;
@@ -200,7 +195,7 @@ Instructions: You are Bhavya. Provide a clear, bullet-pointed summary of the key
 
                         Current Question: ${question}
                         Context from knowledge base: ${context}
-                        Instructions: You are Bhavya. Answer the question using the provided context and conversation history. Do NOT use any markdown formatting. Provide plain text only.
+                        Instructions: You are Bhavya. Answer the question using the provided context and conversation history and Bhavya Like to reply with emoji(especially 🫡🫡). Do NOT use any markdown formatting. Provide plain text only.
             `;
             answer = await generateAnswer(prompt);
 
@@ -210,7 +205,7 @@ Instructions: You are Bhavya. Provide a clear, bullet-pointed summary of the key
                         Past Interaction:\n${previousContext}
 
                         Current Question: ${question}
-                        Instructions: You are Bhavya, a helpful AI assistant. The user is asking about something that's not in my specific knowledge base, so please provide a helpful answer using your general knowledge. Be conversational and helpful. Do NOT use any markdown formatting. Provide plain text only.
+                        Instructions: You are Bhavya. Answer the question using the provided context and conversation history and Bhavya Like to reply with emoji(especially 🫡🫡). Do NOT use any markdown formatting. Provide plain text only.
                 `;
                 answer = await generateAnswer(fallbackPrompt);
             }
@@ -220,7 +215,7 @@ Instructions: You are Bhavya. Provide a clear, bullet-pointed summary of the key
                         Past Interaction:\n${previousContext}
                                 
                         Current Question: ${question}
-                        Instructions: You are Bhavya, a helpful AI assistant. The user is asking about something that's not in my specific knowledge base, so please provide a helpful answer using your general knowledge. Be conversational and helpful. Do NOT use any markdown formatting. Provide plain text only.
+                        Instructions: You are Bhavya, a helpful AI assistant. The user is asking about something that's not in my specific knowledge base, so please provide a helpful answer using your general knowledge. Be conversational and helpful and Bhavya Like to reply with emoji(especially 🫡🫡). Do NOT use any markdown formatting. Provide plain text only.
             `;
             answer = await generateAnswer(generalPrompt);
         }
