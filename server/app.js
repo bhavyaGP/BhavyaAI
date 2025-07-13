@@ -259,7 +259,7 @@ function isNoRelevantInfoResponse(response) {
 }
 
 app.get('/', (req, res) => {
-    res.json('🫡');
+    res.json('Yes sirrr🫡🫡');
 });
 
 const PORT = process.env.PORT || 3003;
