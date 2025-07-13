@@ -1,4 +1,3 @@
-
 require('dotenv').config();
 const express = require('express');
 const fs = require('fs');
@@ -21,12 +20,30 @@ function splitIntoChunks(text, chunkSize = 500, overlap = 50) {
     const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
     const chunks = [];
     let currentChunk = [];
+    let currentLength = 0;
     for (const sentence of sentences) {
-        if (currentChunk.join(' ').length + sentence.length <= chunkSize) {
+        const sentenceLength = sentence.length;
+        if (currentLength + sentenceLength <= chunkSize) {
             currentChunk.push(sentence);
+            currentLength += sentenceLength;
         } else {
-            chunks.push(currentChunk.join(' '));
-            currentChunk = [sentence];
+            if (currentChunk.length) {
+                chunks.push(currentChunk.join(' '));
+            }
+            // Overlap logic
+            if (overlap > 0 && currentChunk.length) {
+                let overlapChunk = [];
+                let overlapLen = 0;
+                for (let i = currentChunk.length - 1; i >= 0 && overlapLen < overlap; i--) {
+                    overlapChunk.unshift(currentChunk[i]);
+                    overlapLen += currentChunk[i].length;
+                }
+                currentChunk = [...overlapChunk, sentence];
+                currentLength = currentChunk.reduce((sum, s) => sum + s.length, 0);
+            } else {
+                currentChunk = [sentence];
+                currentLength = sentenceLength;
+            }
         }
     }
     if (currentChunk.length > 0) {
@@ -38,27 +55,32 @@ function splitIntoChunks(text, chunkSize = 500, overlap = 50) {
 function extractKeyPhrases(text) {
     const words = text.toLowerCase().split(/\W+/);
     const stopWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by']);
-    return words.filter(word => word.length > 3 && !stopWords.has(word)).slice(0, 10);
+    const keyPhrases = [];
+    for (const word of words) {
+        if (word.length > 3 && !stopWords.has(word) && !keyPhrases.includes(word)) {
+            keyPhrases.push(word);
+            if (keyPhrases.length === 10) break;
+        }
+    }
+    return keyPhrases;
 }
 
 async function storeTextChunksInPinecone(text) {
     const index = pinecone.Index(process.env.indexName);
     const chunks = splitIntoChunks(text);
-    const upserts = [];
-    for (const [i, chunk] of chunks.entries()) {
+    const upserts = await Promise.all(chunks.map(async (chunk, i) => {
         const embeddingResponse = await textEmbeddingModel.embedContent(chunk);
-        const embedding = embeddingResponse.embedding.values;
-        upserts.push({
+        return {
             id: `chunk-${i}`,
-            values: embedding,
+            values: embeddingResponse.embedding.values,
             metadata: {
                 text: chunk,
                 chunkIndex: i,
                 totalChunks: chunks.length,
                 keyPhrases: extractKeyPhrases(chunk),
             },
-        });
-    }
+        };
+    }));
     await index.upsert(upserts);
     console.log(`${chunks.length} chunks stored successfully in Pinecone.`);
 }
@@ -75,15 +97,14 @@ async function retrieveRelevantChunks(question) {
 }
 
 async function generateAnswer(prompt) {
-    const primaryModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-    const primaryResponse = await primaryModel.generateContent(prompt);
-    const text = primaryResponse.response.text().toLowerCase();
-    if (text.includes('no relevant information found')) {
-        const backupModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-        const backupResponse = await backupModel.generateContent(prompt);
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const response = await model.generateContent(prompt);
+    const text = response.response.text();
+    if (isNoRelevantInfoResponse(text)) {
+        const backupResponse = await model.generateContent(prompt);
         return backupResponse.response.text();
     }
-    return primaryResponse.response.text();
+    return text;
 }
 
 async function initializeLangChain() {
@@ -96,17 +117,30 @@ async function initializeLangChain() {
     await storeTextChunksInPinecone(text);
 }
 
+function buildConversationText(history) {
+    return history.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.message}`).join('\n');
+}
+
+function buildContextFromChunks(chunks) {
+    return chunks.map(c => c.metadata.text).join("\n\n");
+}
+
+function buildPrompt({ previousContext, question, context, instructions }) {
+    return `Past Interaction:\n${previousContext}
+
+Current Question: ${question}
+${context ? `Context from knowledge base: ${context}` : ''}
+Instructions: ${instructions}`;
+}
+
 app.post('/ask', async (req, res) => {
     try {
         const { question, userId } = req.body;
         if (!question) {
             return res.status(400).json({ error: 'Question is required' });
         }
-        console.log('Received question:', question);
-        // Use a default userId if not provided for backward compatibility
         const effectiveUserId = userId || 'default_user';
 
-        // Handle special commands
         if (question.startsWith('@reset')) {
             userMemory.set(effectiveUserId, []);
             return res.json({ answer: 'Memory has been reset. You can start a fresh conversation now.' });
@@ -117,65 +151,46 @@ app.post('/ask', async (req, res) => {
             if (history.length === 0) {
                 return res.json({ answer: 'No conversation history to summarize.' });
             }
-
-            const conversationText = history.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.message}`).join('\n');
-            const summaryPrompt = `
-Please provide a concise summary of this conversation:
+            const conversationText = buildConversationText(history);
+            const summaryPrompt = `Please provide a concise summary of this conversation:
 ${conversationText}
 
-Instructions: You are Bhavya. Provide a clear, bullet-pointed summary of the key topics discussed and main points covered and Bhavya Like to reply with emoji(especially 🫡🫡). Do NOT use markdown formatting.
-            `;
+Instructions: You are Bhavya. Provide a clear, bullet-pointed summary of the key topics discussed and main points covered and Bhavya Like to reply with emoji(especially 🫡🫡). Do NOT use markdown formatting.`;
             const summary = await generateAnswer(summaryPrompt);
             return res.json({ answer: summary });
         }
 
         if (question.startsWith('@explain')) {
-            console.log('Received explain command:', question);
             const topic = question.replace('@explain', '').trim();
             if (!topic) {
                 return res.json({ answer: 'Please specify what you would like me to explain. Usage: @explain [topic]\n\nExample: @explain machine learning\nExample: @explain how photosynthesis works' });
             }
-
-            // First try to get relevant chunks from your knowledge base
             const relevantChunks = await retrieveRelevantChunks(topic);
-            const context = relevantChunks.map(c => c.metadata.text).join("\n\n");
-
+            const context = buildContextFromChunks(relevantChunks);
             let explanation;
-
             if (context && context.trim().length > 0) {
-                // Use context from knowledge base if available
-                const explainPrompt = `
-                    Topic to explain: ${topic}
-                    Context from knowledge base: ${context}
-                    Instructions: You are Bhavya, an AI assistant. Provide a detailed, educational explanation of "${topic}". Use the context provided along with your general knowledge to give a comprehensive explanation. Break it down into simple terms and include relevant examples. Do NOT use markdown formatting. Provide plain text only.
-                `;
+                const explainPrompt = `Topic to explain: ${topic}
+Context from knowledge base: ${context}
+Instructions: You are Bhavya, an AI assistant. Provide a detailed, educational explanation of "${topic}". Use the context provided along with your general knowledge to give a comprehensive explanation. Break it down into simple terms and include relevant examples. Do NOT use markdown formatting. Provide plain text only.`;
                 explanation = await generateAnswer(explainPrompt);
-                console.log('Generated explanation:', explanation);
-                // Check if LLM returned no relevant information and fallback
                 if (isNoRelevantInfoResponse(explanation)) {
-                    const fallbackPrompt = `
-                        You are Bhavya, a knowledgeable AI assistant. Please provide a detailed, educational explanation of "${topic}".
+                    const fallbackPrompt = `You are Bhavya, a knowledgeable AI assistant. Please provide a detailed, educational explanation of "${topic}".
 
-                        Instructions:
-                        - Break down the concept into simple, easy-to-understand terms                       
+Instructions:
+- Break down the concept into simple, easy-to-understand terms                       
 
-                        Topic to explain: ${topic}
-                    `;
+Topic to explain: ${topic}`;
                     explanation = await generateAnswer(fallbackPrompt);
                 }
             } else {
-                // Fallback to general knowledge if no relevant context found
-                const generalExplainPrompt = `
-                        You are Bhavya, a knowledgeable AI assistant. Please provide a detailed, educational explanation of "${topic}".
+                const generalExplainPrompt = `You are Bhavya, a knowledgeable AI assistant. Please provide a detailed, educational explanation of "${topic}".
 
-                        Instructions:
-                        - Break down the concept into simple, easy-to-understand terms
+Instructions:
+- Break down the concept into simple, easy-to-understand terms
 
-                        Topic to explain: ${topic}
-                `;
+Topic to explain: ${topic}`;
                 explanation = await generateAnswer(generalExplainPrompt);
             }
-
             return res.json({ answer: explanation });
         }
 
@@ -183,40 +198,22 @@ Instructions: You are Bhavya. Provide a clear, bullet-pointed summary of the key
         let history = userMemory.get(effectiveUserId) || [];
         history.push({ role: 'user', message: question });
 
-        const previousContext = history.slice(-4).map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.message}`).join('\n');
-        const context = relevantChunks.map(c => c.metadata.text).join("\n\n");
+        const previousContext = buildConversationText(history.slice(-4));
+        const context = buildContextFromChunks(relevantChunks);
 
         let answer;
+        const instructionsWithEmoji = "You are Bhavya. Answer the question using the provided context and conversation history and Bhavya Like to reply with emoji(especially 🫡🫡). Do NOT use any markdown formatting. Provide plain text only.";
+        const generalInstructions = "You are Bhavya, a helpful AI assistant. The user is asking about something that's not in my specific knowledge base, so please provide a helpful answer using your general knowledge. Be conversational and helpful and Bhavya Like to reply with emoji(especially 🫡🫡). Do NOT use any markdown formatting. Provide plain text only.";
 
         if (context && context.trim().length > 0) {
-            // Use knowledge base context if available
-            const prompt = `
-                        Past Interaction:\n${previousContext}
-
-                        Current Question: ${question}
-                        Context from knowledge base: ${context}
-                        Instructions: You are Bhavya. Answer the question using the provided context and conversation history and Bhavya Like to reply with emoji(especially 🫡🫡). Do NOT use any markdown formatting. Provide plain text only.
-            `;
+            const prompt = buildPrompt({ previousContext, question, context, instructions: instructionsWithEmoji });
             answer = await generateAnswer(prompt);
-
-            // Check if LLM returned no relevant information and fallback
             if (isNoRelevantInfoResponse(answer)) {
-                const fallbackPrompt = `
-                        Past Interaction:\n${previousContext}
-
-                        Current Question: ${question}
-                        Instructions: You are Bhavya. Answer the question using the provided context and conversation history and Bhavya Like to reply with emoji(especially 🫡🫡). Do NOT use any markdown formatting. Provide plain text only.
-                `;
+                const fallbackPrompt = buildPrompt({ previousContext, question, context: '', instructions: instructionsWithEmoji });
                 answer = await generateAnswer(fallbackPrompt);
             }
         } else {
-            // Fallback to general knowledge when no relevant context found
-            const generalPrompt = `
-                        Past Interaction:\n${previousContext}
-                                
-                        Current Question: ${question}
-                        Instructions: You are Bhavya, a helpful AI assistant. The user is asking about something that's not in my specific knowledge base, so please provide a helpful answer using your general knowledge. Be conversational and helpful and Bhavya Like to reply with emoji(especially 🫡🫡). Do NOT use any markdown formatting. Provide plain text only.
-            `;
+            const generalPrompt = buildPrompt({ previousContext, question, context: '', instructions: generalInstructions });
             answer = await generateAnswer(generalPrompt);
         }
 
@@ -230,17 +227,13 @@ Instructions: You are Bhavya. Provide a clear, bullet-pointed summary of the key
     }
 });
 
-// Helper function to detect if LLM returned no relevant information
 function isNoRelevantInfoResponse(response) {
-    if (!response || typeof response !== 'string') {
-        return false;
-    }
-
+    if (!response || typeof response !== 'string') return false;
     const noInfoPhrases = [
         'no relevant information found',
         'no relevant information',
-        'i don\'t have information',
-        'i don\'t have relevant information',
+        "i don't have information",
+        "i don't have relevant information",
         'no information available',
         'not enough information',
         'insufficient information',
@@ -249,21 +242,17 @@ function isNoRelevantInfoResponse(response) {
         'information not available',
         'unable to find information',
         'no specific information',
-        'i don\'t know',
+        "i don't know",
         'i am not sure',
         'i cannot answer',
-        'i don\'t have enough information',
-        'sorry, i don\'t have information'
+        "i don't have enough information",
+        "sorry, i don't have information"
     ];
-
     const lowerResponse = response.toLowerCase().trim();
-
-    // Check if response contains any of the no-info phrases
     return noInfoPhrases.some(phrase => lowerResponse.includes(phrase)) ||
-        // Check if response is very short (less than 20 characters) and seems unhelpful
         (lowerResponse.length < 20 && (
             lowerResponse.includes('sorry') ||
-            lowerResponse.includes('don\'t know') ||
+            lowerResponse.includes("don't know") ||
             lowerResponse.includes('no') ||
             lowerResponse.includes('not available')
         ));
